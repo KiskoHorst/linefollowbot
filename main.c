@@ -149,10 +149,13 @@ void mainloop()
     
     float ref_left = ref.l1/24000.0;
     float ref_right = ref.r1/24000.0;
-    float dir = 3.0f*(ref_left-ref_right);
+    float ref_right2 = ref.r3/24000.0;
+    float ref_left2 = ref.l3/24000.0;
+    float dir = (ref_left-ref_right)+ 10.0*(ref_left2-ref_right2);
+    
     printf("%.2f %.2f, %.2f\r\n", ref_left, ref_right, dir);
     CyDelay(1);
-    motor_turn((255-max(dir*255, 0)), (255-max(-dir*255, 0)),0);
+    motor_turn((0.8*255-max(dir*300, 0)), (0.8*255-max(-dir*300, 0)),0);
     
     //motor_turn(255-min(0, -dir*255),255-min(255, dir*255), 0);
     //motor_turn(255-ref_left*255,255-ref_right*255, 0);
