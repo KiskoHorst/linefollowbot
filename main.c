@@ -47,8 +47,13 @@ int rread(void);
 void mainloop();
 int min(int a, int b);
 int max(int a, int b);
+void setSpeed(int left, int right);
+int absolute(int input);
+int isPositive(int input);
 int programtimer = 0;
 clock_t startTime = 0;
+
+float speedMultiplier = 1.0;
 
 /**
  * @file    main.c
@@ -72,7 +77,6 @@ int main()
     int active = 0;
     time_t batterytimer = 0;
     int lastButton = 1;
-    long time = 0;
     Counter_1_Init();
     Counter_1_Enable();
 
@@ -86,7 +90,6 @@ int main()
     motor_forward(0, 0);
     while (battery)
     {
-        time = Counter_1_ReadCounter();
         if (batterytimer > 1000)
         {
             BatteryLed_Write(1);
@@ -143,7 +146,6 @@ int main()
 void mainloop()
 {
     struct sensors_ ref;
-    float offset = 0.0f;
     
     reflectance_read(&ref);
     
@@ -151,11 +153,14 @@ void mainloop()
     float ref_right = ref.r1/24000.0;
     float ref_right2 = ref.r3/24000.0;
     float ref_left2 = ref.l3/24000.0;
-    float dir = (ref_left-ref_right)+ 10.0*(ref_left2-ref_right2);
+    float dir = (1.6*(ref_left-ref_right)+ 2.8*(ref_left2-ref_right2))*255;
     
     printf("%.2f %.2f, %.2f\r\n", ref_left, ref_right, dir);
     CyDelay(1);
-    motor_turn((0.8*255-max(dir*300, 0)), (0.8*255-max(-dir*300, 0)),0);
+    
+    setSpeed(255-dir, 255+dir);
+    
+    //motor_turn((0.8*255-max(dir*300, 0)), (0.8*255-max(-dir*300, 0)),0);
     
     //motor_turn(255-min(0, -dir*255),255-min(255, dir*255), 0);
     //motor_turn(255-ref_left*255,255-ref_right*255, 0);
@@ -175,6 +180,28 @@ int max(int a, int b)
     return a;
     else
     return b;
+}
+
+void setSpeed(int left, int right)
+{
+    left = min(max(left, -255), 255)*speedMultiplier;
+    right = min(max(right, -255), 255)*speedMultiplier;
+    //MotorPwmLeft_Write(absolute(left));
+    //MotorPwmRight_Write(absolute(right));
+    PWM_WriteCompare1(absolute(left));
+    PWM_WriteCompare2(absolute(right));
+    MotorDirLeft_Write(!isPositive(left));
+    MotorDirRight_Write(!isPositive(right));
+}
+
+int absolute(int input)
+{
+    return (input > 0)?input:-input;   
+}
+
+int isPositive(int input)
+{
+    return (input > 0)?1:0;   
 }
 
 
