@@ -45,15 +45,28 @@
 
 int rread(void);
 void mainloop();
+void stop();
+void start();
+void position();
 int min(int a, int b);
 int max(int a, int b);
+float minf(float a, float b);
 void setSpeed(int left, int right);
 int absolute(int input);
 int isPositive(int input);
 int programtimer = 0;
+int active = 0;
+int positioning = 0;
 clock_t startTime = 0;
 
+int state = 0;
+
+int lines = 0;
+int targetlines;
+int on_a_line = 0;
 float speedMultiplier = 1.0;
+
+float trackCalibration = 1.0;
 
 /**
  * @file    main.c
@@ -74,7 +87,8 @@ int main()
     int16 adcresult =0;
     float volts = 0.0;
     int battery = 1;
-    int active = 0;
+    
+    
     time_t batterytimer = 0;
     int lastButton = 1;
     Counter_1_Init();
@@ -90,7 +104,7 @@ int main()
     motor_forward(0, 0);
     while (battery)
     {
-        if (batterytimer > 1000)
+        if (batterytimer > 8000)
         {
             BatteryLed_Write(1);
             batterytimer = 0;
@@ -113,21 +127,36 @@ int main()
             BatteryLed_Write(0);
         }
         batterytimer++;
-        
-        if (active)
+        //printf("state:%d, line:%d", state, on_a_line);
+        if (state == 1 || state == 3)
             mainloop();
-        else
+        else {
+            int ir = IR_receiver_Read();
+            if (ir != 1) {
+                if (state == 2) {
+                    start();
+                } else {
+                    position();
+                }
+            }
             motor_forward(0,0);
-        if (SW1_Read() == 0 && lastButton == 1)
-        {
-            lastButton = 0;
-            printf("Button pressed\n");
-            active = !active;
-            programtimer = 0;
-            startTime = clock();
-            IR_led_Write(active);
         }
-        if (SW1_Read() == 1)
+        if (!SW1_Read())
+        {
+            if (lastButton)
+            {
+                lastButton = 0;
+                //printf("Button pressed\n");
+            
+                if (state == 0)
+                    position();
+                else if (state == 2)
+                    start();
+                else
+                    stop();
+            }
+        }
+        else
         {
             lastButton = 1;   
         }
@@ -143,6 +172,30 @@ int main()
     }
  }   
 //*/
+void start() {
+    programtimer = 0;
+    IR_led_Write(1);
+    lines = 0;
+    state = 3;
+    positioning = 0;
+    speedMultiplier = 1.0;
+    targetlines = 3;
+}
+
+void position() {
+    IR_led_Write(1);
+    positioning = 1;
+    on_a_line = 0;
+    state = 1;
+    speedMultiplier = 0.33;
+    targetlines = 2;
+    lines = 0;
+}
+
+void stop() {
+    state = 0;
+    IR_led_Write(0);
+}
 void mainloop()
 {
     struct sensors_ ref;
@@ -152,11 +205,31 @@ void mainloop()
     float ref_left = ref.l1/24000.0;
     float ref_right = ref.r1/24000.0;
     float ref_right2 = ref.r3/24000.0;
-    float ref_left2 = ref.l3/24000.0;
-    float dir = (1.6*(ref_left-ref_right)+ 2.8*(ref_left2-ref_right2))*255;
+    float ref_left2 = minf(1.0, ref.l3/20690.0);
+    float dir = (1.5*(ref_left-ref_right)+ 3.0*(ref_left2-ref_right2))*255;
+    //float dir = (0.5*(ref_left-ref_right)+ (ref_left2-ref_right2))*255;
     
-    printf("%.2f %.2f, %.2f\r\n", ref_left, ref_right, dir);
-    CyDelay(1);
+    //dir = dir*dir*dir;
+    
+    if (ref_left > 0.8 && ref_right > 0.8 && ref_left2 > 0.8 && ref_right2 > 0.8) {
+        on_a_line = 1;
+        //BatteryLed_Write(1);
+        if(lines == targetlines-1 && state == 3) {
+            stop();
+        }
+    } else if (ref_left2 < 0.7 && ref_right2 < 0.7 && on_a_line) {
+        lines += 1;
+        if (lines == targetlines) {
+            stop();
+            state = 2;
+        }
+        on_a_line = 0;
+        //BatteryLed_Write(0);
+    }
+    
+    //printf("%d, %.2f %.2f %.2f %.2f, %.2f", lines, ref_left2, ref_left, ref_right, ref_right2, dir);
+    //CyDelay(1);
+    
     
     setSpeed(255-dir, 255+dir);
     
@@ -167,6 +240,14 @@ void mainloop()
 }
 
 int min(int a, int b)
+{
+    if (a < b)
+    return a;
+    else
+    return b;
+}
+
+float minf(float a, float b)
 {
     if (a < b)
     return a;
@@ -192,6 +273,7 @@ void setSpeed(int left, int right)
     PWM_WriteCompare2(absolute(right));
     MotorDirLeft_Write(!isPositive(left));
     MotorDirRight_Write(!isPositive(right));
+    //printf(", %d, %d\n", left, right);
 }
 
 int absolute(int input)
