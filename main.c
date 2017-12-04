@@ -43,7 +43,6 @@
 #include "Ambient.h"
 #include "Beep.h"
 
-int rread(void);
 void mainloop();
 void stop();
 void start();
@@ -53,11 +52,7 @@ int max(int a, int b);
 float minf(float a, float b);
 void setSpeed(int left, int right);
 int absolute(int input);
-int isPositive(int input);
 int programtimer = 0;
-int active = 0;
-int positioning = 0;
-clock_t startTime = 0;
 
 int state = 0;
 
@@ -65,8 +60,6 @@ int lines = 0;
 int targetlines;
 int on_a_line = 0;
 float speedMultiplier = 1.0;
-
-float trackCalibration = 1.0;
 
 /**
  * @file    main.c
@@ -91,8 +84,8 @@ int main()
     
     time_t batterytimer = 0;
     int lastButton = 1;
-    Counter_1_Init();
-    Counter_1_Enable();
+    //Counter_1_Init();
+    //Counter_1_Enable();
 
     printf("\nStarting...\n");
 
@@ -115,9 +108,9 @@ int main()
                 volts = adcresult/546.0f;// convert value to Volts
         
                 // If you want to print value
-                //printf("%d %f\r\n",adcresult, volts);
+                printf("%d %f\r\n",adcresult, volts);
             }
-            printf("Battery voltage: %.2f V\n", volts);
+            //printf("Battery voltage: %.2f V\n", volts);
             
             if (volts < 4)
             {
@@ -162,7 +155,6 @@ int main()
         }
     }
     int led = 1;
-    active = 0;
     motor_stop();
     for (;;)
     {
@@ -177,14 +169,12 @@ void start() {
     IR_led_Write(1);
     lines = 0;
     state = 3;
-    positioning = 0;
     speedMultiplier = 1.0;
     targetlines = 3;
 }
 
 void position() {
     IR_led_Write(1);
-    positioning = 1;
     on_a_line = 0;
     state = 1;
     speedMultiplier = 0.33;
@@ -206,18 +196,18 @@ void mainloop()
     float ref_right = ref.r1/24000.0;
     float ref_right2 = ref.r3/24000.0;
     float ref_left2 = minf(1.0, ref.l3/20690.0);
-    float dir = (1.5*(ref_left-ref_right)+ 3.0*(ref_left2-ref_right2))*255;
+    float dir = (1.7*(ref_left-ref_right)+ 2.2*(ref_left2-ref_right2))*255;
     //float dir = (0.5*(ref_left-ref_right)+ (ref_left2-ref_right2))*255;
     
-    //dir = dir*dir*dir;
+    //dir = dir*dir*dir*255;
     
     if (ref_left > 0.8 && ref_right > 0.8 && ref_left2 > 0.8 && ref_right2 > 0.8) {
         on_a_line = 1;
         //BatteryLed_Write(1);
-        if(lines == targetlines-1 && state == 3) {
+        if(lines == targetlines -1 && state == 3) {
             stop();
         }
-    } else if (ref_left2 < 0.7 && ref_right2 < 0.7 && on_a_line) {
+    } else if (on_a_line && ref_left2 < 0.7 && ref_right2 < 0.7) {
         lines += 1;
         if (lines == targetlines) {
             stop();
@@ -227,11 +217,11 @@ void mainloop()
         //BatteryLed_Write(0);
     }
     
-    //printf("%d, %.2f %.2f %.2f %.2f, %.2f", lines, ref_left2, ref_left, ref_right, ref_right2, dir);
-    //CyDelay(1);
+    //printf("%d, %.2f %.2f %.2f %.2f, %.2f\n", lines, ref_left2, ref_left, ref_right, ref_right2, dir);
+    //CyDelay(5);
     
     
-    setSpeed(255-dir, 255+dir);
+    setSpeed(256-dir, 255+dir);
     
     //motor_turn((0.8*255-max(dir*300, 0)), (0.8*255-max(-dir*300, 0)),0);
     
@@ -271,19 +261,14 @@ void setSpeed(int left, int right)
     //MotorPwmRight_Write(absolute(right));
     PWM_WriteCompare1(absolute(left));
     PWM_WriteCompare2(absolute(right));
-    MotorDirLeft_Write(!isPositive(left));
-    MotorDirRight_Write(!isPositive(right));
+    MotorDirLeft_Write(left < 0);
+    MotorDirRight_Write(right < 0);
     //printf(", %d, %d\n", left, right);
 }
 
 int absolute(int input)
 {
     return (input > 0)?input:-input;   
-}
-
-int isPositive(int input)
-{
-    return (input > 0)?1:0;   
 }
 
 
